@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import yfinance as yf
 
-# RSI Calculation Function
+# RSI Calculation function
 def calculate_rsi(data, window=14):
     delta = data.diff()
     up, down = delta.clip(lower=0), -1 * delta.clip(upper=0)
