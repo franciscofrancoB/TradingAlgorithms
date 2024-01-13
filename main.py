@@ -1,38 +1,17 @@
 import pandas as pd
 import os
+import json
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import yfinance as yf
 import smtplib
 from email.message import EmailMessage
 
-# RSI Calculation function
-def calculate_rsi(data, window=14):
-    delta = data.diff()
-    up, down = delta.clip(lower=0), -1 * delta.clip(upper=0)
-    ema_up = up.ewm(span=window, adjust=False).mean()
-    ema_down = down.ewm(span=window, adjust=False).mean()
-    rs = ema_up / ema_down
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
+import indicators
 
-# MACD Calculation Function
-def calculate_macd(data, short_window=12, long_window=26, signal_window=9):
-    short_ema = data.ewm(span=short_window, adjust=False).mean()
-    long_ema = data.ewm(span=long_window, adjust=False).mean()
-    macd_line = short_ema - long_ema
-    signal_line = macd_line.ewm(span=signal_window, adjust=False).mean()
-    return macd_line, signal_line
-
-# Stochastic Oscillator Calculation Function
-def calculate_stochastic_oscillator(data, k_window=14, d_window=3):
-    low_min = data['Low'].rolling(window=k_window).min()
-    high_max = data['High'].rolling(window=k_window).max()
-    K_line = ((data['Close'] - low_min) / (high_max - low_min)) * 100
-    D_line = K_line.rolling(window=d_window).mean()
-    return K_line, D_line
-
-
+# Load configuration
+with open('config.json') as config_file:
+    config = json.load(config_file)
 
 # Function to check if there's a new signal
 def is_new_signal(signal_date, file_path='last_signal_date.csv'):
@@ -83,19 +62,13 @@ def plot_with_indicator(df, indicator, ticker_symbol):
     title_suffix = f" ({start_date} to {end_date})"
     
     if indicator == 'RSI':
-        rsi = calculate_rsi(close_prices)
-        buy_signals = rsi < 30
-        sell_signals = rsi > 70
+        buy_signals, sell_signals = indicators.rsi_signals(close_prices)
 
     elif indicator == 'MACD':
-        macd_line, signal_line = calculate_macd(close_prices)
-        buy_signals = (macd_line > signal_line) & (macd_line.shift() <= signal_line.shift())
-        sell_signals = (macd_line < signal_line) & (macd_line.shift() >= signal_line.shift())
+        buy_signals, sell_signals = indicators.macd_signals(close_prices)
 
     elif indicator == 'Stochastic':
-        K_line, D_line = calculate_stochastic_oscillator(df)
-        buy_signals = (K_line > D_line) & (K_line < 20)
-        sell_signals = (K_line < D_line) & (K_line > 80)
+        buy_signals, sell_signals = indicators.stochastic_signals(df)
     
 
     # Handling signals and email alerts
@@ -124,13 +97,17 @@ def plot_with_indicator(df, indicator, ticker_symbol):
     plt.show()
 
     
-# Fetch data from yfinance
-ticker_symbol = "AAPL"
-ticker = yf.Ticker(ticker_symbol)
-df = ticker.history(start="2022-01-01")
-df.reset_index(inplace=True)
-close_prices = df['Close']
+    
+# Main execution
+if __name__ == "__main__":
+    # Fetch data from yfinance using configuration
+    ticker_symbol = config['ticker_symbol']
+    start_date = config['start_date']
+    ticker = yf.Ticker(ticker_symbol)
+    df = ticker.history(start=start_date)
+    df.reset_index(inplace=True)
+    close_prices = df['Close']
 
-# Options: 'RSI', 'MACD', 'Stochastic'
-indicator_choice = 'RSI'
-plot_with_indicator(df, indicator=indicator_choice, ticker_symbol=ticker_symbol)
+    # Indicator choice from configuration
+    indicator_choice = config['indicator_choice']
+    plot_with_indicator(df, indicator=indicator_choice, ticker_symbol=ticker_symbol)
