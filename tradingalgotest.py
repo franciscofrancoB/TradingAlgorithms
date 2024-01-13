@@ -1,7 +1,10 @@
 import pandas as pd
+import os
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import yfinance as yf
+import smtplib
+from email.message import EmailMessage
 
 # RSI Calculation function
 def calculate_rsi(data, window=14):
@@ -30,18 +33,45 @@ def calculate_stochastic_oscillator(data, k_window=14, d_window=3):
     return K_line, D_line
 
 
-""" # OPTION 1: Read CSV file
-df = pd.read_csv('AAPL.csv')
-df['Date'] = pd.to_datetime(df['Date'])
-close_prices = df['Close'] """
 
-# OPTION 2: Fetch data from yfinance
-ticker_symbol = "AAPL"
-ticker = yf.Ticker(ticker_symbol)
-df = ticker.history(start="2022-01-01")
-df.reset_index(inplace=True)
-close_prices = df['Close']
+# Function to check if there's a new signal
+def is_new_signal(signal_date, file_path='last_signal_date.csv'):
+    if not os.path.exists(file_path) or os.stat(file_path).st_size == 0:
+        # File doesn't exist or is empty
+        return True
+    else:
+        df = pd.read_csv(file_path)
+        if 'date' not in df.columns:
+            return True
+        last_dates = df['date']
+        return signal_date not in last_dates.values
 
+# Function to update the date in the file
+def update_last_signal_date(signal_date, file_path='last_signal_date.csv'):
+    if not os.path.exists(file_path) or os.stat(file_path).st_size == 0:
+        df = pd.DataFrame(columns=['date'])
+    else:
+        df = pd.read_csv(file_path)
+    
+    new_row = {'date': signal_date}
+    df = df._append(new_row, ignore_index=True)
+    df.to_csv(file_path, index=False)
+    
+def email_alert(subject, body, to):
+    msg = EmailMessage()
+    msg.set_content(body)
+    msg['subject'] = subject
+    msg['to'] = to
+
+    user = "franciscoboudagh1@gmail.com"
+    msg['from'] = user
+    password = "utwzrzqzadlphhxm"
+
+    server = smtplib.SMTP("smtp.gmail.com", 587)
+    server.starttls()
+    server.login(user, password)
+    server.send_message(msg)
+    server.quit()
 
 # Function to plot indicators
 def plot_with_indicator(df, indicator, ticker_symbol):
@@ -66,6 +96,20 @@ def plot_with_indicator(df, indicator, ticker_symbol):
         K_line, D_line = calculate_stochastic_oscillator(df)
         buy_signals = (K_line > D_line) & (K_line < 20)
         sell_signals = (K_line < D_line) & (K_line > 80)
+    
+
+    # Handling signals and email alerts
+    latest_buy_signal = df['Date'][buy_signals].max() if buy_signals.any() else None
+    latest_sell_signal = df['Date'][sell_signals].max() if sell_signals.any() else None
+    latest_signal_date = max(latest_buy_signal, latest_sell_signal)
+
+    if latest_signal_date and is_new_signal(latest_signal_date.strftime('%Y-%m-%d')):
+        signal_type = 'Buy' if latest_buy_signal == latest_signal_date else 'Sell'
+        update_last_signal_date(latest_signal_date.strftime('%Y-%m-%d'))
+        # Send email alert
+        email_body = f"New signal: {signal_type}\nTicker: {ticker_symbol}\nDate: {latest_signal_date.strftime('%Y-%m-%d')}"
+        email_alert("New Trading Signal", email_body, "franciscoboudagh1@gmail.com")
+
 
     plt.scatter(df['Date'][buy_signals], close_prices[buy_signals], color='green', label='Buy Signal', marker='^')
     plt.scatter(df['Date'][sell_signals], close_prices[sell_signals], color='red', label='Sell Signal', marker='v')
@@ -79,8 +123,14 @@ def plot_with_indicator(df, indicator, ticker_symbol):
     plt.tight_layout()
     plt.show()
 
+    
+# Fetch data from yfinance
+ticker_symbol = "AAPL"
+ticker = yf.Ticker(ticker_symbol)
+df = ticker.history(start="2022-01-01")
+df.reset_index(inplace=True)
+close_prices = df['Close']
 
-# Choose indicator and plot
 # Options: 'RSI', 'MACD', 'Stochastic'
-indicator_choice = 'MACD'
+indicator_choice = 'RSI'
 plot_with_indicator(df, indicator=indicator_choice, ticker_symbol=ticker_symbol)
