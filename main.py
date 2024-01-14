@@ -1,17 +1,17 @@
 import pandas as pd
 import os
-import json
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import yfinance as yf
 import smtplib
 from email.message import EmailMessage
-
 import indicators
+import json
 
 # Load configuration
 with open('config.json') as config_file:
     config = json.load(config_file)
+
 
 # Function to check if there's a new signal
 def is_new_signal(signal_date, file_path='last_signal_date.csv'):
@@ -52,6 +52,63 @@ def email_alert(subject, body, to):
     server.send_message(msg)
     server.quit()
 
+
+
+
+
+def simulate_portfolio(df, buy_signals, sell_signals, initial_shares=config['initial_shares']):
+    cash = 0
+    shares = initial_shares
+    share_price_initial = df['Close'].iloc[0]
+    cash += shares * share_price_initial
+    portfolio_values = []
+
+    for i in range(len(df)):
+        if buy_signals[i] and cash >= df['Close'][i]:
+            shares += 1
+            cash -= df['Close'][i]
+        elif sell_signals[i] and shares > 0:
+            shares -= 1
+            cash += df['Close'][i]
+        portfolio_value = cash + shares * df['Close'][i]
+        portfolio_values.append(portfolio_value)
+
+    return portfolio_values
+
+def plot_portfolio_value(df, portfolio_values, indicator, ticker_symbol):
+    plt.figure(figsize=(10, 6))
+
+    # Absolute portfolio value
+    ax1 = plt.gca()
+    ax1.plot(df['Date'], portfolio_values)
+    ax1.set_xlabel('Date')
+    ax1.set_ylabel('Portfolio Value')
+    ax1.tick_params(axis='y')
+    ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+    ax1.xaxis.set_major_locator(mdates.MonthLocator())
+    plt.xticks(rotation=45)
+
+    # Percentage growth on a secondary axis
+    initial_value = portfolio_values[0]
+    percentage_growth = [(value - initial_value) / initial_value * 100 for value in portfolio_values]
+    ax2 = ax1.twinx()
+    ax2.plot(df['Date'], percentage_growth)
+    ax2.set_ylabel('Percentage Growth (%)')
+    ax2.tick_params(axis='y')
+    start_date = df['Date'].iloc[0].strftime('%Y-%m-%d')
+    end_date = df['Date'].iloc[-1].strftime('%Y-%m-%d')
+    plt.title(f'Portfolio Value Growth | {ticker_symbol} using {indicator} ({start_date} to {end_date})')
+    
+    plt.axhline(y=0, color="grey")
+    plt.tight_layout()
+    plt.show()
+
+
+
+
+
+
+
 # Function to plot indicators
 def plot_with_indicator(df, indicator, ticker_symbol):
     plt.figure(figsize=(10, 6))
@@ -83,7 +140,7 @@ def plot_with_indicator(df, indicator, ticker_symbol):
         email_body = f"New signal: {signal_type}\nTicker: {ticker_symbol}\nDate: {latest_signal_date.strftime('%Y-%m-%d')}"
         email_alert("New Trading Signal", email_body, "franciscoboudagh1@gmail.com")
 
-
+    
     plt.scatter(df['Date'][buy_signals], close_prices[buy_signals], color='green', label='Buy Signal', marker='^')
     plt.scatter(df['Date'][sell_signals], close_prices[sell_signals], color='red', label='Sell Signal', marker='v')
     plt.title(f'{ticker_symbol} with {indicator} Indicator. Buy/Sell Signals{title_suffix}')
@@ -96,11 +153,12 @@ def plot_with_indicator(df, indicator, ticker_symbol):
     plt.tight_layout()
     plt.show()
 
-    
+    return buy_signals, sell_signals
+
     
 # Main execution
 if __name__ == "__main__":
-    # Fetch data from yfinance using configuration
+    # Fetch data from yfinance
     ticker_symbol = config['ticker_symbol']
     start_date = config['start_date']
     ticker = yf.Ticker(ticker_symbol)
@@ -108,6 +166,9 @@ if __name__ == "__main__":
     df.reset_index(inplace=True)
     close_prices = df['Close']
 
-    # Indicator choice from configuration
+    # Indicator choice
     indicator_choice = config['indicator_choice']
-    plot_with_indicator(df, indicator=indicator_choice, ticker_symbol=ticker_symbol)
+
+    buy_signals, sell_signals = plot_with_indicator(df, indicator=indicator_choice, ticker_symbol=ticker_symbol)
+    portfolio_values = simulate_portfolio(df, buy_signals, sell_signals)
+    plot_portfolio_value(df, portfolio_values, indicator=indicator_choice, ticker_symbol=ticker_symbol)
