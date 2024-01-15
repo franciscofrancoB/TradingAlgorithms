@@ -1,5 +1,5 @@
 {
-    "ticker_symbol": "MSFT",
+    "ticker_symbol": "AAPL",
     "start_date": "2023-01-01",
     "__comments__": "indicators options: RSI, MACD, Stochastic",
     "indicator_choice": "RSI",
