@@ -8,13 +8,12 @@ from email.message import EmailMessage
 import indicators
 import json
 
-# Load configuration
 with open('config.json') as config_file:
+    '''Load configuration'''
     config = json.load(config_file)
 
-
-# Function to check if there's a new signal
 def is_new_signal(signal_date, file_path='last_signal_date.csv'):
+    '''Function to check if there's a new signal'''
     if not os.path.exists(file_path) or os.stat(file_path).st_size == 0:
         # File doesn't exist or is empty
         return True
@@ -25,8 +24,8 @@ def is_new_signal(signal_date, file_path='last_signal_date.csv'):
         last_dates = df['date']
         return signal_date not in last_dates.values
 
-# Function to update the date in the file
 def update_last_signal_date(signal_date, file_path='last_signal_date.csv'):
+    '''Function to update the date in the file'''
     if not os.path.exists(file_path) or os.stat(file_path).st_size == 0:
         df = pd.DataFrame(columns=['date'])
     else:
@@ -35,8 +34,9 @@ def update_last_signal_date(signal_date, file_path='last_signal_date.csv'):
     new_row = {'date': signal_date}
     df = df._append(new_row, ignore_index=True)
     df.to_csv(file_path, index=False)
-    
+
 def email_alert(subject, body, to):
+    '''Function to send email alerts if new signal'''
     msg = EmailMessage()
     msg.set_content(body)
     msg['subject'] = subject
@@ -53,10 +53,8 @@ def email_alert(subject, body, to):
     server.quit()
 
 
-
-
-
 def simulate_portfolio(df, buy_signals, sell_signals, initial_shares=config['initial_shares']):
+    '''Simulation of portfolio, buys and sells according to the signals'''
     cash = 0
     shares = initial_shares
     share_price_initial = df['Close'].iloc[0]
@@ -76,6 +74,7 @@ def simulate_portfolio(df, buy_signals, sell_signals, initial_shares=config['ini
     return portfolio_values
 
 def plot_portfolio_value(df, portfolio_values, indicator, ticker_symbol):
+    '''Function to plot portfolio'''
     plt.figure(figsize=(10, 6))
 
     # Absolute portfolio value
@@ -103,14 +102,8 @@ def plot_portfolio_value(df, portfolio_values, indicator, ticker_symbol):
     plt.tight_layout()
     plt.show()
 
-
-
-
-
-
-
-# Function to plot indicators
 def plot_with_indicator(df, indicator, ticker_symbol):
+    '''Function to plot stock and indicators'''
     plt.figure(figsize=(10, 6))
     plt.plot(df['Date'], close_prices, label='Close Price', alpha=0.6)
 
@@ -156,7 +149,6 @@ def plot_with_indicator(df, indicator, ticker_symbol):
     return buy_signals, sell_signals
 
     
-# Main execution
 if __name__ == "__main__":
     # Fetch data from yfinance
     ticker_symbol = config['ticker_symbol']
